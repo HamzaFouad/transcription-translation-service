@@ -1,0 +1,23 @@
+# Exclude the Dockerfile
+Dockerfile
+
+# Exclude the Docker ignore file itself
+.dockerignore
+
+# Exclude Git and environment files
+.git
+.gitignore
+.env
+
+# Exclude local Go build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Exclude IDE directories and files
+.vscode
+.idea
+*.swp
