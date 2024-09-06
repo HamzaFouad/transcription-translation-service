@@ -8,26 +8,26 @@ import (
 )
 
 type Config struct {
-	Port      string
-	OpenAIKey string
+	Port         string
+	OpenAIConfig OpenAIConfig
 }
 
-func LoadConfig() Config {
-	// Load environment variables from .env file, if available
+func LoadConfig() *Config {
 	err := godotenv.Load()
 	if err != nil {
 		log.Println("No .env file found, using system environment variables")
 	}
 
-	config := Config{
-		Port:      getEnv("PORT", "9000"), // Default port is 9000
-		OpenAIKey: getEnv("OPENAI_API_KEY", ""),
+	return &Config{
+		Port: getEnv("PORT", "9000"),
+		OpenAIConfig: OpenAIConfig{
+			APIKey:       getEnv("OPENAI_API_KEY", ""),
+			ModelName:    getEnv("OPENAI_MODEL_NAME", "gpt-4o-mini"),
+			OpenAIAPIURL: getEnv("OPENAI_API_URL", "https://api.openai.com/v1"),
+		},
 	}
-
-	return config
 }
 
-// Helper function to get an environment variable or default value if not present
 func getEnv(key, defaultValue string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value
