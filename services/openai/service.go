@@ -23,8 +23,17 @@ func NewOpenAIService(cfg *config.OpenAIConfig) *OpenAIService {
 }
 
 const (
-	defaultMaxTokens   = 2500
-	defaultTemperature = 0.3
+	defaultMaxTokens             = 2300 // for output translated text -> x1.3 of the input text, rounded to x1.5 for safety
+	defaultTemperature           = 0.3
+	DefaultMaxCharSizePerRequest = 6300
+	/*
+		assuming 5 mins of talk per transcription
+		-> ~770 words
+		-> assuming max 2 tokens per word (1.5 on average)
+		-> 1540 tokens
+		-> 1540 * 4 = 6160 characters
+		~1% overhead for properties that is passed along with the transcription.
+	*/
 )
 
 func (s *OpenAIService) Translate(text string, sourceLang, targetLang data.Language) (string, error) {
@@ -81,4 +90,11 @@ func (s *OpenAIService) parseResponse(resp *http.Response) (string, error) {
 	}
 
 	return openAIResponse.Choices[0].Message.Content, nil
+}
+
+func (s *OpenAIService) estimateTokens(text string) int {
+	// Rough estimation: average 4 characters per token
+	tokenCount := len(text) / 4
+	fmt.Printf("Estimating tokens for text: '%s'\nEstimated tokens: %d\n\n", text, tokenCount)
+	return tokenCount
 }
