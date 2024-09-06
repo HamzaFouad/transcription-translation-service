@@ -26,3 +26,14 @@ func DeserializeFromString(input string, output interface{}) error {
 	}
 	return nil
 }
+
+func SetupRouter() *gin.Engine {
+	router := gin.Default()
+
+	router.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Content-Type", "application/json")
+		c.Next()
+	})
+
+	return router
+}

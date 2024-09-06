@@ -14,10 +14,7 @@ import (
 func main() {
 	cfg := config.LoadConfig()
 
-	router := gin.Default()
-
-	translator := openai.NewOpenAIService(&cfg.OpenAIConfig)
-
+	router := utils.SetupRouter()
 	router.POST("/translate",
 		data.TranscriptionValidation,
 		handlers.TranslateHandler(translator, data.Arabic, data.English))
