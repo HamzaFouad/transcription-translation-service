@@ -6,6 +6,7 @@ import (
 	"transcriptions-translation-service/config"
 	"transcriptions-translation-service/data"
 	"transcriptions-translation-service/handlers"
+	"transcriptions-translation-service/middleware"
 	"transcriptions-translation-service/services/openai"
 	"transcriptions-translation-service/utils"
 )
@@ -17,7 +18,7 @@ func main() {
 
 	router := utils.SetupRouter()
 	router.POST("/translate",
-		data.TranscriptionValidation,
+		middleware.TranscriptionValidation,
 		handlers.TranslateHandler(translator, logger, data.Arabic, data.English))
 
 	log.Println("Starting server on port", cfg.Port)
