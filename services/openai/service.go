@@ -63,13 +63,11 @@ func (s *OpenAIService) sendRequestWithRetry(req *http.Request) (*http.Response,
 	var resp *http.Response
 	var err error
 	retryCount := 0
-
 	operation := func() error {
 		retryCount++
 		resp, err = s.client.Do(req)
 		if err != nil || resp.StatusCode != http.StatusOK {
-			s.logger.Error("Attempt #%d: error executing request: %v", retryCount, err)
-			return err
+			return s.handleRequestError(retryCount, err, resp)
 		}
 		return nil
 	}
@@ -120,4 +118,18 @@ func (s *OpenAIService) parseResponse(resp *http.Response) (string, error) {
 	}
 
 	return openAIResponse.Choices[0].Message.Content, nil
+}
+
+func (s *OpenAIService) handleRequestError(retryCount int, err error, resp *http.Response) error {
+
+	errorMessage := fmt.Sprintf("Attempt #%d: error executing openai request", retryCount)
+
+	if err != nil {
+		s.logger.Error("%s: %v", errorMessage, err)
+		return err
+	}
+
+	s.logger.Error("%s: status code: %d", errorMessage, resp.StatusCode)
+	resp.Body.Close()
+	return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 }
