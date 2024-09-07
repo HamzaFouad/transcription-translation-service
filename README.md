@@ -78,7 +78,7 @@ and the expected response will be as following
 - `/translate`
 - validate input
 - extract sentences that needs to be translated into a separate list, group them into moderate batches.
-- every batch opens a goroutine and calls openai to translate the batch, having its own retry policy if there is an  translate these batches concurrently, while preserving the batches orders. [every batch opens a separate thread with its own retries]
+- translate these batches concurrently, while preserving the batches orders. [every batch opens a goroutine with its own retries policy]
 - await all goroutines and assemble all these transcriptions back into results array with the same order as user's request.
 
 ## Decisions
