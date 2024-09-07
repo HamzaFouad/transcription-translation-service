@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 	"transcriptions-translation-service/config"
 	"transcriptions-translation-service/data"
 	"transcriptions-translation-service/utils"
+
+	"github.com/cenkalti/backoff/v4"
 )
 
 type OpenAIService struct {
@@ -20,7 +23,9 @@ type OpenAIService struct {
 func NewOpenAIService(cfg *config.OpenAIConfig, logger utils.Logger) *OpenAIService {
 	return &OpenAIService{
 		config: cfg,
-		client: &http.Client{},
+		client: &http.Client{
+			Timeout: 10 * time.Second,
+		},
 		logger: logger.WithPrefix("[OpenAIService]"),
 	}
 }
@@ -40,25 +45,43 @@ const (
 )
 
 func (s *OpenAIService) Translate(text string, sourceLang, targetLang data.Language) (string, error) {
-
 	jsonData := reqBuilder(s, text, sourceLang, targetLang)
 	req, _ := http.NewRequest("POST", s.config.OpenAIAPIURL+"/chat/completions", bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+s.config.APIKey)
 
-	resp, err := s.client.Do(req)
+	resp, err := s.sendRequestWithRetry(req)
 	if err != nil {
-		s.logger.Error("error executing request: %v", err)
-		return "", fmt.Errorf("failed to execute request: %w", err)
+		return "", fmt.Errorf("failed to translate text: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		s.logger.Error("failed to translate text, status code: %d", resp.StatusCode)
-		return "", fmt.Errorf("failed to translate text, status code: %d", resp.StatusCode)
+	return s.parseResponse(resp)
+}
+
+func (s *OpenAIService) sendRequestWithRetry(req *http.Request) (*http.Response, error) {
+	var resp *http.Response
+	var err error
+	retryCount := 0
+
+	operation := func() error {
+		retryCount++
+		resp, err = s.client.Do(req)
+		if err != nil || resp.StatusCode != http.StatusOK {
+			s.logger.Error("Attempt #%d: error executing request: %v", retryCount, err)
+			return err
+		}
+		return nil
 	}
 
-	return s.parseResponse(resp)
+	backoffConfig := utils.NewBackoffConfig(s.logger)
+	err = backoff.RetryNotify(operation, backoffConfig.ToBackOff(), backoffConfig.Notify)
+	if err != nil {
+		s.logger.Error("Failed to execute request after %d retries", retryCount)
+		return nil, fmt.Errorf("request failed after retries: %w", err)
+	}
+
+	return resp, nil
 }
 
 func reqBuilder(s *OpenAIService, text string, sourceLang data.Language, targetLang data.Language) []byte {

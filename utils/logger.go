@@ -9,6 +9,7 @@ import (
 type Logger interface {
 	Info(msg string, args ...interface{})
 	Error(msg string, args ...interface{})
+	Warn(msg string, args ...interface{})
 	WithPrefix(prefix string) Logger
 }
 
@@ -32,6 +33,11 @@ func (l *StandardLogger) Info(msg string, args ...interface{}) {
 // Error logs error messages
 func (l *StandardLogger) Error(msg string, args ...interface{}) {
 	l.logger.Printf("[ERROR] "+msg, args...)
+}
+
+// Warn logs warning messages
+func (l *StandardLogger) Warn(msg string, args ...interface{}) {
+	l.logger.Printf("[WARN] "+msg, args...)
 }
 
 func (l *StandardLogger) WithPrefix(prefix string) Logger {
