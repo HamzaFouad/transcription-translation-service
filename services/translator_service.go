@@ -38,7 +38,7 @@ func TranslateBatch(index int, batch []string, translator Translator, sourceLang
 
 	if !utils.IsValidJSON(translatedText) {
 		resultsChan <- Result{Index: index, Err: fmt.Errorf("invalid JSON format received: %s", translatedText)}
-		// potentially here we can store the failed batch in a queue and handle it accordingly
+		// TODO: potentially here we can store the failed batch in a queue and handle it accordingly
 		return
 	}
 
