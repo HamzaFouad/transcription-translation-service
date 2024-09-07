@@ -5,3 +5,5 @@ type Transcription struct {
 	Time     string `json:"time"`
 	Sentence string `json:"sentence"`
 }
+
+const KeyTranscriptionContext = "transcriptions_context_key"
