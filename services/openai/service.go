@@ -24,7 +24,7 @@ func NewOpenAIService(cfg *config.OpenAIConfig, logger utils.Logger) *OpenAIServ
 	return &OpenAIService{
 		config: cfg,
 		client: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: 30 * time.Second,
 		},
 		logger: logger.WithPrefix("[OpenAIService]"),
 	}
@@ -48,7 +48,7 @@ func (s *OpenAIService) GetMaxCharSizePerRequest() int {
 	return defaultMaxCharSizePerRequest
 }
 
-func (s *OpenAIService) Translate(text string, sourceLang, targetLang data.Language) (string, error) {
+func (s *OpenAIService) TranslateAsync(text string, sourceLang, targetLang data.Language) (string, error) {
 	jsonData := reqBuilder(s, text, sourceLang, targetLang)
 	req, _ := http.NewRequest("POST", s.config.OpenAIAPIURL+"/chat/completions", bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
