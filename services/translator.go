@@ -1,5 +1,7 @@
 package services
 
+import "transcriptions-translation-service/data"
+
 type Translator interface {
-	Translate(text string, sourceLang string, targetLang string) (string, error)
+	Translate(text string, sourceLang, targetLang data.Language) (string, error)
 }

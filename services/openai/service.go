@@ -8,17 +8,20 @@ import (
 	"net/http"
 	"transcriptions-translation-service/config"
 	"transcriptions-translation-service/data"
+	"transcriptions-translation-service/utils"
 )
 
 type OpenAIService struct {
 	config *config.OpenAIConfig
 	client *http.Client
+	logger utils.Logger
 }
 
-func NewOpenAIService(cfg *config.OpenAIConfig) *OpenAIService {
+func NewOpenAIService(cfg *config.OpenAIConfig, logger utils.Logger) *OpenAIService {
 	return &OpenAIService{
 		config: cfg,
 		client: &http.Client{},
+		logger: logger.WithPrefix("[OpenAIService]"),
 	}
 }
 
@@ -45,11 +48,13 @@ func (s *OpenAIService) Translate(text string, sourceLang, targetLang data.Langu
 
 	resp, err := s.client.Do(req)
 	if err != nil {
+		s.logger.Error("error executing request: %v", err)
 		return "", fmt.Errorf("failed to execute request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		s.logger.Error("failed to translate text, status code: %d", resp.StatusCode)
 		return "", fmt.Errorf("failed to translate text, status code: %d", resp.StatusCode)
 	}
 
@@ -82,19 +87,14 @@ func (s *OpenAIService) parseResponse(resp *http.Response) (string, error) {
 	var openAIResponse OpenAIResponse
 
 	if err := json.NewDecoder(resp.Body).Decode(&openAIResponse); err != nil {
+		s.logger.Error("error decoding response: %v", err)
 		return "", fmt.Errorf("failed to decode translation response: %w", err)
 	}
 
 	if len(openAIResponse.Choices) == 0 {
+		s.logger.Error("Invalid translation response format: no choices available")
 		return "", errors.New("invalid translation response format: no choices available")
 	}
 
 	return openAIResponse.Choices[0].Message.Content, nil
-}
-
-func (s *OpenAIService) estimateTokens(text string) int {
-	// Rough estimation: average 4 characters per token
-	tokenCount := len(text) / 4
-	fmt.Printf("Estimating tokens for text: '%s'\nEstimated tokens: %d\n\n", text, tokenCount)
-	return tokenCount
 }

@@ -1,41 +1,47 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"transcriptions-translation-service/data"
+	"transcriptions-translation-service/services"
 	"transcriptions-translation-service/services/openai"
 	"transcriptions-translation-service/utils"
 
 	"github.com/gin-gonic/gin"
 )
 
-func TranslateHandler(translator *openai.OpenAIService, sourceLang, targetLang data.Language) gin.HandlerFunc {
+func TranslateHandler(translator services.Translator, logger utils.Logger, sourceLang, targetLang data.Language) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		logger = logger.WithPrefix("[TranslateHandler]")
+
 		transcriptions, ok := getTranscriptionsFromContext(c)
 		if !ok {
+			logger.Error("Failed to get transcriptions from context")
 			return
 		}
 
 		batches := groupTranscriptions(transcriptions, openai.DefaultMaxCharSizePerRequest)
-		fmt.Println("Batches after grouping: ", len(batches))
+		logger.Info("Batches after grouping: %d", len(batches))
 		var translatedTranscriptions []data.Transcription
 
 		for _, batch := range batches {
 			serializedBatch, err := utils.SerializeToString(batch)
 			if err != nil {
+				logger.Error("unable to serialize batch: %v", err)
 				utils.HandleError(c, http.StatusInternalServerError, "unable to serialize batch")
 				return
 			}
 
 			translatedText, err := translator.Translate(serializedBatch, sourceLang, targetLang)
 			if err != nil {
+				logger.Error("translation error: %v", err)
 				utils.HandleError(c, http.StatusInternalServerError, err.Error())
 				return
 			}
 
 			var translatedBatch []data.Transcription
 			if err := utils.DeserializeFromString(translatedText, &translatedBatch); err != nil {
+				logger.Error("unable to deserialize translated text: %v", err)
 				utils.HandleError(c, http.StatusInternalServerError, "unable to deserialize translated text")
 				return
 			}
@@ -44,6 +50,7 @@ func TranslateHandler(translator *openai.OpenAIService, sourceLang, targetLang d
 		}
 
 		if err := utils.ToJSON(translatedTranscriptions, c.Writer); err != nil {
+			logger.Error("unable to marshal JSON: %v", err)
 			utils.HandleError(c, http.StatusInternalServerError, "unable to marshal json")
 		}
 	}
