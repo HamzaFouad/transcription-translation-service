@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"transcriptions-translation-service/data"
 	"transcriptions-translation-service/services"
@@ -15,35 +16,47 @@ func TranslateHandler(translator services.Translator, logger utils.Logger, sourc
 		transcriptions, ok := getTranscriptionsFromContext(c)
 		if !ok {
 			logger.Error("Failed to get transcriptions from context")
+			utils.HandleError(c, http.StatusBadRequest, "Failed to get transcriptions from context")
 			return
 		}
 
 		textsToTranslate := extractTextProperties(transcriptions)
 		batches := groupTranscriptions(textsToTranslate, openai.DefaultMaxCharSizePerRequest)
-
 		logger.Info("Number of transcriptions: %d, Batches after grouping: %d", len(transcriptions), len(batches))
 
 		var translatedTexts []string
+		translatedChan := make(chan []string)
+		errorChan := make(chan error)
 
 		for _, batch := range batches {
-			serializedBatch, _ := utils.SerializeToString(batch)
+			go func(batch []string) {
+				serializedBatch, _ := utils.SerializeToString(batch)
 
-			translatedText, err := translator.Translate(serializedBatch, sourceLang, targetLang)
+				translatedText, err := translator.Translate(serializedBatch, sourceLang, targetLang)
+				if err != nil {
+					errorChan <- err
+					return
+				}
 
-			if err != nil {
+				var translatedBatch []string
+				if err := utils.DeserializeFromString(translatedText, &translatedBatch); err != nil {
+					errorChan <- fmt.Errorf("unable to deserialize translated text: %v", err)
+					return
+				}
+
+				translatedChan <- translatedBatch
+			}(batch)
+		}
+
+		for i := 0; i < len(batches); i++ {
+			select {
+			case translatedBatch := <-translatedChan:
+				translatedTexts = append(translatedTexts, translatedBatch...)
+			case err := <-errorChan:
 				logger.Error("translation error: %v", err)
 				utils.HandleError(c, http.StatusInternalServerError, err.Error())
 				return
 			}
-
-			var translatedBatch []string
-			if err := utils.DeserializeFromString(translatedText, &translatedBatch); err != nil {
-				logger.Error("unable to deserialize translated text: %v", err)
-				utils.HandleError(c, http.StatusInternalServerError, "unable to deserialize translated text")
-				return
-			}
-
-			translatedTexts = append(translatedTexts, translatedBatch...)
 		}
 
 		translatedTranscriptions := reintegrateTranslatedProperty(transcriptions, translatedTexts)
