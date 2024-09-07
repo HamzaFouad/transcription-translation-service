@@ -33,7 +33,7 @@ func NewOpenAIService(cfg *config.OpenAIConfig, logger utils.Logger) *OpenAIServ
 const (
 	defaultMaxTokens             = 2300 // for output translated text -> x1.3 of the input text, rounded to x1.5 for safety
 	defaultTemperature           = 0.3
-	DefaultMaxCharSizePerRequest = 6300
+	defaultMaxCharSizePerRequest = 6300
 	/*
 		assuming 5 mins of talk per transcription
 		-> ~770 words
@@ -43,6 +43,10 @@ const (
 		~1% overhead for properties that is passed along with the transcription.
 	*/
 )
+
+func (s *OpenAIService) GetMaxCharSizePerRequest() int {
+	return defaultMaxCharSizePerRequest
+}
 
 func (s *OpenAIService) Translate(text string, sourceLang, targetLang data.Language) (string, error) {
 	jsonData := reqBuilder(s, text, sourceLang, targetLang)
