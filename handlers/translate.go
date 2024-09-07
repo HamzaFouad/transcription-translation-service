@@ -12,42 +12,41 @@ import (
 
 func TranslateHandler(translator services.Translator, logger utils.Logger, sourceLang, targetLang data.Language) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		logger = logger.WithPrefix("[TranslateHandler]")
-
 		transcriptions, ok := getTranscriptionsFromContext(c)
 		if !ok {
 			logger.Error("Failed to get transcriptions from context")
 			return
 		}
 
-		batches := groupTranscriptions(transcriptions, openai.DefaultMaxCharSizePerRequest)
-		logger.Info("Batches after grouping: %d", len(batches))
-		var translatedTranscriptions []data.Transcription
+		textsToTranslate := extractTextProperties(transcriptions)
+		batches := groupTranscriptions(textsToTranslate, openai.DefaultMaxCharSizePerRequest)
+
+		logger.Info("Number of transcriptions: %d, Batches after grouping: %d", len(transcriptions), len(batches))
+
+		var translatedTexts []string
 
 		for _, batch := range batches {
-			serializedBatch, err := utils.SerializeToString(batch)
-			if err != nil {
-				logger.Error("unable to serialize batch: %v", err)
-				utils.HandleError(c, http.StatusInternalServerError, "unable to serialize batch")
-				return
-			}
+			serializedBatch, _ := utils.SerializeToString(batch)
 
 			translatedText, err := translator.Translate(serializedBatch, sourceLang, targetLang)
+
 			if err != nil {
 				logger.Error("translation error: %v", err)
 				utils.HandleError(c, http.StatusInternalServerError, err.Error())
 				return
 			}
 
-			var translatedBatch []data.Transcription
+			var translatedBatch []string
 			if err := utils.DeserializeFromString(translatedText, &translatedBatch); err != nil {
 				logger.Error("unable to deserialize translated text: %v", err)
 				utils.HandleError(c, http.StatusInternalServerError, "unable to deserialize translated text")
 				return
 			}
 
-			translatedTranscriptions = append(translatedTranscriptions, translatedBatch...)
+			translatedTexts = append(translatedTexts, translatedBatch...)
 		}
+
+		translatedTranscriptions := reintegrateTranslatedProperty(transcriptions, translatedTexts)
 
 		if err := utils.ToJSON(translatedTranscriptions, c.Writer); err != nil {
 			logger.Error("unable to marshal JSON: %v", err)
@@ -65,18 +64,18 @@ func getTranscriptionsFromContext(c *gin.Context) ([]data.Transcription, bool) {
 	return transcriptions.([]data.Transcription), true
 }
 
-func groupTranscriptions(transcriptions []data.Transcription, maxChars int) [][]data.Transcription {
-	var batches [][]data.Transcription
-	var currentBatch []data.Transcription
+func groupTranscriptions(transcriptions []string, maxChars int) [][]string {
+	var batches [][]string
+	var currentBatch []string
 	currentChars := 0
 
 	for _, transcription := range transcriptions {
-		transcriptionLength := len(transcription.Sentence)
+		transcriptionLength := len(transcription)
 
 		if currentChars+transcriptionLength > maxChars {
 			batches = append(batches, currentBatch)
-			currentBatch = []data.Transcription{}
-			currentChars = 0
+			currentBatch = []string{} // Reset the current batch
+			currentChars = 0          // Reset character count
 		}
 
 		currentBatch = append(currentBatch, transcription)
@@ -89,4 +88,19 @@ func groupTranscriptions(transcriptions []data.Transcription, maxChars int) [][]
 	}
 
 	return batches
+}
+
+func extractTextProperties(transcriptions []data.Transcription) []string {
+	var texts []string
+	for _, t := range transcriptions {
+		texts = append(texts, t.Sentence)
+	}
+	return texts
+}
+
+func reintegrateTranslatedProperty(originalTranscriptions []data.Transcription, translatedValues []string) []data.Transcription {
+	for i := range originalTranscriptions {
+		originalTranscriptions[i].Sentence = translatedValues[i]
+	}
+	return originalTranscriptions
 }

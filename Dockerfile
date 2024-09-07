@@ -11,7 +11,7 @@ RUN go mod download && go mod verify
 COPY . .
 
 # Build the Go application and place the binary in /usr/local/bin
-RUN go build -v -o /usr/local/bin/app ./...
+RUN go build -v -o /usr/local/bin/app .
 
 EXPOSE 9000
 

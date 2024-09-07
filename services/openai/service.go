@@ -50,13 +50,25 @@ func (s *OpenAIService) Translate(text string, sourceLang, targetLang data.Langu
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+s.config.APIKey)
 
-	resp, err := s.sendRequestWithRetry(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to translate text: %w", err)
-	}
-	defer resp.Body.Close()
+	respChan := make(chan *http.Response)
+	errChan := make(chan error)
 
-	return s.parseResponse(resp)
+	go func() {
+		resp, err := s.sendRequestWithRetry(req)
+		if err != nil {
+			errChan <- fmt.Errorf("failed to translate text: %w", err)
+			return
+		}
+		respChan <- resp
+	}()
+
+	select {
+	case resp := <-respChan:
+		defer resp.Body.Close()
+		return s.parseResponse(resp)
+	case err := <-errChan:
+		return "", err
+	}
 }
 
 func (s *OpenAIService) sendRequestWithRetry(req *http.Request) (*http.Response, error) {
